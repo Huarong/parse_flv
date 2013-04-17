@@ -11,6 +11,7 @@ import struct
 
 _tag_count = 0
 _offset = 0
+_tag_type_dict = {8: 'Audio', 9: 'Video', 18: 'Script'}
 
 
 def has_next_tag(binary_file_object):
@@ -75,7 +76,8 @@ def parse_script(binary_file_object, output_file_object):
     output_file_object.write('## OFFSET' + '\t' + str(_offset) + os.linesep)
     # Write tag type.
     tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
-    output_file_object.write('TagType' + '\t' + str(tag_type_int) + os.linesep)
+    global _tag_type_dict
+    output_file_object.write('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
     # Skip the remaining.
     data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
     binary_file_object.seek(3 + 1 + 3 + data_size_int, 1)
@@ -177,7 +179,8 @@ def parse_tag_header(binary_file_object, output_file_object):
     # Write to output file.
     global _offset
     output_file_object.write('## OFFSET' + '\t' + str(_offset) + os.linesep)
-    output_file_object.write('TagType' + '\t' + str(tag_type_int) + os.linesep)
+    global _tag_type_dict
+    output_file_object.write('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
     output_file_object.write('DataSize' + '\t' + str(data_size_int) + os.linesep)
     output_file_object.write('Timestamp' + '\t' + str(timestamp_int) + os.linesep)
     output_file_object.write('TimestampExtended' + '\t' + str(timestamp_extended) + os.linesep)
