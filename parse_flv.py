@@ -12,6 +12,14 @@ import struct
 _tag_count = 0
 _offset = 0
 _tag_type_dict = {8: 'Audio', 9: 'Video', 18: 'Script'}
+_TAB_SIZE = 20
+
+
+def ascii_to_binary(ascii_str):
+    binary = ''
+    for c in ascii_str:
+        binary += bin(ord(c))[2:].zfill(8)
+    return binary
 
 
 def has_next_tag(binary_file_object):
@@ -62,6 +70,9 @@ def parse_file_header(binary_file_object, output_file_object):
                 'TypeFlagsReserved' + '\t' + type_flags_reversed_2 + os.linesep,
                 'TypeFlagsVideo' + '\t' + type_flags_video + os.linesep,
                 'DataOffset' + '\t' + str(data_offset) + os.linesep]
+    # Expand tab size to _TAB_SIZE.
+    global _TAB_SIZE
+    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
     parse_pre_tag_size(binary_file_object, output_file_object)
     _offset += data_offset + 4
@@ -81,6 +92,8 @@ def parse_script(binary_file_object, output_file_object):
     tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
     global _tag_type_dict
     to_write.append('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
+    global _TAB_SIZE
+    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
     # Skip the remaining.
     data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
@@ -88,6 +101,33 @@ def parse_script(binary_file_object, output_file_object):
     # Modify _offset.
     _offset += 11 + data_size_int + 4
     return
+
+
+def parse_tag_header(binary_file_object, output_file_object):
+    '''
+    Parse the header part of a tag.
+    Parameter type: file object, file object.
+    Return: integer type data size.
+    '''
+    tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
+    data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
+    timestamp_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
+    timestamp_extended = struct.unpack('>b', binary_file_object.read(1))[0]
+    stream_id = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
+    # Write to output file.
+    global _offset
+    global _tag_type_dict
+    to_write = ['## OFFSET' + '\t' + str(_offset) + os.linesep,
+                'TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep,
+                'DataSize' + '\t' + str(data_size_int) + os.linesep,
+                'Timestamp' + '\t' + str(timestamp_int) + os.linesep,
+                'TimestampExtended' + '\t' + str(timestamp_extended) + os.linesep,
+                'StreamID' + '\t' + str(stream_id) + os.linesep * 2]
+    global _TAB_SIZE
+    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
+    output_file_object.writelines(to_write)
+    _offset += 11 + data_size_int + 4
+    return data_size_int
 
 
 def parse_audio(binary_file_object, output_file_object):
@@ -125,6 +165,8 @@ def parse_audio(binary_file_object, output_file_object):
         field_value = int(binary_audio_info[accumulation: new_accumulation], 2)
         to_write.append(field + '\t' + audio_dict[field][field_value] + os.linesep)
         accumulation = new_accumulation
+    global _TAB_SIZE
+    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
     # Skip data area.
     binary_file_object.seek(data_size_int - 1, 1)
@@ -161,41 +203,11 @@ def parse_video(binary_file_object, output_file_object):
         field_value = int(binary_video_info[accumulation: new_accumulation], 2)
         to_write.append(field + '\t' + video_dict[field][field_value] + os.linesep)
         accumulation = new_accumulation
+    global _TAB_SIZE
+    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
     binary_file_object.seek(data_size_int - 1, 1)
     return
-
-
-def ascii_to_binary(ascii_str):
-    binary = ''
-    for c in ascii_str:
-        binary += bin(ord(c))[2:].zfill(8)
-    return binary
-
-
-def parse_tag_header(binary_file_object, output_file_object):
-    '''
-    Parse the header part of a tag.
-    Parameter type: file object, file object.
-    Return: integer type data size.
-    '''
-    tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
-    data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
-    timestamp_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
-    timestamp_extended = struct.unpack('>b', binary_file_object.read(1))[0]
-    stream_id = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
-    # Write to output file.
-    global _offset
-    global _tag_type_dict
-    to_write = ['## OFFSET' + '\t' + str(_offset) + os.linesep,
-                'TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep,
-                'DataSize' + '\t' + str(data_size_int) + os.linesep,
-                'Timestamp' + '\t' + str(timestamp_int) + os.linesep,
-                'TimestampExtended' + '\t' + str(timestamp_extended) + os.linesep,
-                'StreamID' + '\t' + str(stream_id) + os.linesep]
-    output_file_object.writelines(to_write)
-    _offset += 11 + data_size_int + 4
-    return data_size_int
 
 
 def parse_pre_tag_size(binary_file_object, output_file_object):
@@ -204,8 +216,10 @@ def parse_pre_tag_size(binary_file_object, output_file_object):
     Parameter type: file object, file object.
     Return: None
     '''
+    global _TAB_SIZE
     pre_tag_size = struct.unpack('>i', binary_file_object.read(4))[0]
-    output_file_object.write('PreviousTagSize' + '\t' + str(pre_tag_size) + os.linesep)
+    s = 'PreviousTagSize' + '\t' + str(pre_tag_size) + os.linesep
+    output_file_object.write(s.expandtabs(_TAB_SIZE))
     return
 
 
