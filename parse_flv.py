@@ -52,16 +52,16 @@ def parse_file_header(binary_file_object, output_file_object):
     # Fill zero to 8 bits. ==>'00000110'
     type_flags = bin(struct.unpack('>b', ascii_type_flags)[0])[2:].zfill(8)
     type_flags_reversed_1 = int(type_flags[0:5])
-    to_write.append('TypeFlagsReserved' + '\t' + str(type_flags_reversed_1) + os.linesep)
     type_flags_audio = type_flags[5]
-    to_write.append('TypeFlagsAudio' + '\t' + type_flags_audio + os.linesep)
     type_flags_reversed_2 = type_flags[6]
-    to_write.append('TypeFlagsReserved' + '\t' + type_flags_reversed_2 + os.linesep)
     type_flags_video = type_flags[7]
-    to_write.append('TypeFlagsVideo' + '\t' + type_flags_video + os.linesep)
     # Parse data offset.
     data_offset = struct.unpack('>i', binary_file_object.read(4))[0]
-    to_write.append('DataOffset' + '\t' + str(data_offset) + os.linesep)
+    to_write += ['TypeFlagsReserved' + '\t' + str(type_flags_reversed_1) + os.linesep,
+                'TypeFlagsAudio' + '\t' + type_flags_audio + os.linesep,
+                'TypeFlagsReserved' + '\t' + type_flags_reversed_2 + os.linesep,
+                'TypeFlagsVideo' + '\t' + type_flags_video + os.linesep,
+                'DataOffset' + '\t' + str(data_offset) + os.linesep]
     output_file_object.writelines(to_write)
     parse_pre_tag_size(binary_file_object, output_file_object)
     _offset += data_offset + 4
