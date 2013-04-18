@@ -236,6 +236,7 @@ def parse_flv(input_path, output_path):
         else:
             parse_script(binary_file_object, output_file_object)
         parse_pre_tag_size(binary_file_object, output_file_object)
+    output_file_object.close()
     return
 
 
