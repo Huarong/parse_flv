@@ -32,18 +32,19 @@ def parse_file_header(binary_file_object, output_file_object):
     Parameter type: file object, file object.
     Return: None
     '''
-    output_file_object.write('FLV header' + os.linesep * 2)
+    to_write = []
+    to_write.append('FLV header' + os.linesep * 2)
     # Parse offset.
     global _offset
-    output_file_object.write('## OFFSET' + '\t' + str(_offset) + os.linesep)
+    to_write.append('## OFFSET' + '\t' + str(_offset) + os.linesep)
     # Parse signature.
     signature = ''
     for i in range(3):
         signature += binary_file_object.read(1)
-    output_file_object.write('Signature\t' + signature + os.linesep)
+    to_write.append('Signature\t' + signature + os.linesep)
     # Parse version.
     version = ord(binary_file_object.read(1))
-    output_file_object.write('Version\t' + str(version) + os.linesep)
+    to_write.append('Version\t' + str(version) + os.linesep)
     # Parse type flags.
     ascii_type_flags = binary_file_object.read(1)
     # Unpack "ascii type flags" to binary. Binary format: '0b110'
@@ -51,16 +52,17 @@ def parse_file_header(binary_file_object, output_file_object):
     # Fill zero to 8 bits. ==>'00000110'
     type_flags = bin(struct.unpack('>b', ascii_type_flags)[0])[2:].zfill(8)
     type_flags_reversed_1 = int(type_flags[0:5])
-    output_file_object.write('TypeFlagsReserved' + '\t' + str(type_flags_reversed_1) + os.linesep)
+    to_write.append('TypeFlagsReserved' + '\t' + str(type_flags_reversed_1) + os.linesep)
     type_flags_audio = type_flags[5]
-    output_file_object.write('TypeFlagsAudio' + '\t' + type_flags_audio + os.linesep)
+    to_write.append('TypeFlagsAudio' + '\t' + type_flags_audio + os.linesep)
     type_flags_reversed_2 = type_flags[6]
-    output_file_object.write('TypeFlagsReserved' + '\t' + type_flags_reversed_2 + os.linesep)
+    to_write.append('TypeFlagsReserved' + '\t' + type_flags_reversed_2 + os.linesep)
     type_flags_video = type_flags[7]
-    output_file_object.write('TypeFlagsVideo' + '\t' + type_flags_video + os.linesep)
+    to_write.append('TypeFlagsVideo' + '\t' + type_flags_video + os.linesep)
     # Parse data offset.
     data_offset = struct.unpack('>i', binary_file_object.read(4))[0]
-    output_file_object.write('DataOffset' + '\t' + str(data_offset) + os.linesep)
+    to_write.append('DataOffset' + '\t' + str(data_offset) + os.linesep)
+    output_file_object.writelines(to_write)
     parse_pre_tag_size(binary_file_object, output_file_object)
     _offset += data_offset + 4
     return
@@ -72,12 +74,14 @@ def parse_script(binary_file_object, output_file_object):
     Parameter type: file object, file object.
     Return: None
     '''
+    to_write = []
     global _offset
-    output_file_object.write('## OFFSET' + '\t' + str(_offset) + os.linesep)
+    to_write.append('## OFFSET' + '\t' + str(_offset) + os.linesep)
     # Write tag type.
     tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
     global _tag_type_dict
-    output_file_object.write('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
+    to_write.append('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
+    output_file_object.writelines(to_write)
     # Skip the remaining.
     data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
     binary_file_object.seek(3 + 1 + 3 + data_size_int, 1)
@@ -115,11 +119,13 @@ def parse_audio(binary_file_object, output_file_object):
     ascii_audio_info = binary_file_object.read(1)
     binary_audio_info = ascii_to_binary(ascii_audio_info)
     accumulation = 0
+    to_write = []
     for field in audio_data_field:
         new_accumulation = accumulation + audio_data_field[field]
         field_value = int(binary_audio_info[accumulation: new_accumulation], 2)
-        output_file_object.write(field + '\t' + audio_dict[field][field_value] + os.linesep)
+        to_write.append(field + '\t' + audio_dict[field][field_value] + os.linesep)
         accumulation = new_accumulation
+    output_file_object.writelines(to_write)
     # Skip data area.
     binary_file_object.seek(data_size_int - 1, 1)
     return
@@ -149,11 +155,13 @@ def parse_video(binary_file_object, output_file_object):
     ascii_video_info = binary_file_object.read(1)
     binary_video_info = ascii_to_binary(ascii_video_info)
     accumulation = 0
+    to_write = []
     for field in video_data_field:
         new_accumulation = accumulation + video_data_field[field]
         field_value = int(binary_video_info[accumulation: new_accumulation], 2)
-        output_file_object.write(field + '\t' + video_dict[field][field_value] + os.linesep)
+        to_write.append(field + '\t' + video_dict[field][field_value] + os.linesep)
         accumulation = new_accumulation
+    output_file_object.writelines(to_write)
     binary_file_object.seek(data_size_int - 1, 1)
     return
 
@@ -178,13 +186,14 @@ def parse_tag_header(binary_file_object, output_file_object):
     stream_id = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
     # Write to output file.
     global _offset
-    output_file_object.write('## OFFSET' + '\t' + str(_offset) + os.linesep)
     global _tag_type_dict
-    output_file_object.write('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
-    output_file_object.write('DataSize' + '\t' + str(data_size_int) + os.linesep)
-    output_file_object.write('Timestamp' + '\t' + str(timestamp_int) + os.linesep)
-    output_file_object.write('TimestampExtended' + '\t' + str(timestamp_extended) + os.linesep)
-    output_file_object.write('StreamID' + '\t' + str(stream_id) + os.linesep)
+    to_write = ['## OFFSET' + '\t' + str(_offset) + os.linesep,
+                'TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep,
+                'DataSize' + '\t' + str(data_size_int) + os.linesep,
+                'Timestamp' + '\t' + str(timestamp_int) + os.linesep,
+                'TimestampExtended' + '\t' + str(timestamp_extended) + os.linesep,
+                'StreamID' + '\t' + str(stream_id) + os.linesep]
+    output_file_object.writelines(to_write)
     _offset += 11 + data_size_int + 4
     return data_size_int
 
