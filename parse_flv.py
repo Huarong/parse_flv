@@ -85,12 +85,11 @@ def is_ECMA_end(binary_file_object):
     Parameter type: file object.
     Return: boolean
     '''
-    is_end = False
     value = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
     if value == 9:
-        is_end = True
+        return True
     binary_file_object.seek(-3, 1)
-    return is_end
+    return False
 
 
 def parse_script_data(binary_file_object, output_file_object):
