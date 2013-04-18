@@ -58,13 +58,13 @@ def parse_file_header(binary_file_object, output_file_object):
     # Unpack "ascii type flags" to binary. Binary format: '0b110'
     # Strip starting '0b'. ==>'110'
     # Fill zero to 8 bits. ==>'00000110'
-    type_flags = bin(struct.unpack('>b', ascii_type_flags)[0])[2:].zfill(8)
+    type_flags = bin(struct.unpack('>B', ascii_type_flags)[0])[2:].zfill(8)
     type_flags_reversed_1 = int(type_flags[0:5])
     type_flags_audio = type_flags[5]
     type_flags_reversed_2 = type_flags[6]
     type_flags_video = type_flags[7]
     # Parse data offset.
-    data_offset = struct.unpack('>i', binary_file_object.read(4))[0]
+    data_offset = struct.unpack('>I', binary_file_object.read(4))[0]
     to_write += ['TypeFlagsReserved' + '\t' + str(type_flags_reversed_1) + os.linesep,
                 'TypeFlagsAudio' + '\t' + type_flags_audio + os.linesep,
                 'TypeFlagsReserved' + '\t' + type_flags_reversed_2 + os.linesep,
@@ -79,27 +79,68 @@ def parse_file_header(binary_file_object, output_file_object):
     return
 
 
+def is_ECMA_end(binary_file_object):
+    '''
+    Judge whether it is the end of a ECMA array.
+    Parameter type: file object.
+    Return: boolean
+    '''
+    is_end = False
+    value = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
+    if value == 9:
+        is_end = True
+    binary_file_object.seek(-3, 1)
+    return is_end
+
+
+def parse_script_data(binary_file_object, output_file_object):
+    '''
+    Parse the script data value recursively.
+    Parameter type: file object, file object.
+    Return: None
+    '''
+    to_write = []
+    value_type = struct.unpack('>B', binary_file_object.read(1))[0]
+    to_write.append('Type' + '\t' + str(value_type) + os.linesep)
+    # Value type is 2.
+    string_size = struct.unpack('>H', binary_file_object.read(2))[0]
+    string = binary_file_object.read(string_size)
+    to_write += ['String Size' + '\t' + str(string_size) + os.linesep,
+                'String' + '\t' + string + os.linesep]
+    # Value type is 8.
+    value_type = struct.unpack('>B', binary_file_object.read(1))[0]
+    array_size = struct.unpack('>I', binary_file_object.read(4))[0]
+    to_write += ['Type' + '\t' + str(value_type) + os.linesep,
+                'ECMA Array Size' + '\t' + str(array_size) + os.linesep]
+    ECMA_to_write = []
+    while (not is_ECMA_end(binary_file_object)):
+        name_size = struct.unpack('>H', binary_file_object.read(2))[0]
+        name = binary_file_object.read(name_size)
+        ECMA_elem_type = struct.unpack('>B', binary_file_object.read(1))[0]
+        if ECMA_elem_type == 0:
+            value = struct.unpack('>d', binary_file_object.read(8))[0]
+        if ECMA_elem_type == 1:
+            value = struct.unpack('>B', binary_file_object.read(1))[0]
+        if ECMA_elem_type == 2:
+            string_size = struct.unpack('>H', binary_file_object.read(2))[0]
+            value = binary_file_object.read(string_size)
+        if ECMA_elem_type == 12:
+            string_size = struct.unpack('>I', binary_file_object.read(4))[0]
+            value = binary_file_object.read(string_size)
+        output_file_object.write(name + '\t' + str(value) + os.linesep)
+    #     ECMA_to_write.append(name + '\t' + str(value))
+    # output_file_object.writelines(ECMA_to_write)
+    return
+
+
 def parse_script(binary_file_object, output_file_object):
     '''
     Parse the script tag.
     Parameter type: file object, file object.
     Return: None
     '''
-    to_write = []
-    global _offset
-    to_write.append('## OFFSET' + '\t' + str(_offset) + os.linesep)
-    # Write tag type.
-    tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
-    global _tag_type_dict
-    to_write.append('TagType' + '\t' + _tag_type_dict[tag_type_int] + os.linesep)
-    global _TAB_SIZE
-    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
-    output_file_object.writelines(to_write)
-    # Skip the remaining.
-    data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
-    binary_file_object.seek(3 + 1 + 3 + data_size_int, 1)
-    # Modify _offset.
-    _offset += 11 + data_size_int + 4
+    parse_tag_header(binary_file_object, output_file_object)
+    parse_script_data(binary_file_object, output_file_object)
     return
 
 
@@ -109,11 +150,11 @@ def parse_tag_header(binary_file_object, output_file_object):
     Parameter type: file object, file object.
     Return: integer type data size.
     '''
-    tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
-    data_size_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
-    timestamp_int = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
-    timestamp_extended = struct.unpack('>b', binary_file_object.read(1))[0]
-    stream_id = struct.unpack('>i', '\x00' + binary_file_object.read(3))[0]
+    tag_type_int = struct.unpack('>B', binary_file_object.read(1))[0]
+    data_size_int = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
+    timestamp_int = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
+    timestamp_extended = struct.unpack('>B', binary_file_object.read(1))[0]
+    stream_id = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
     # Write to output file.
     global _offset
     global _tag_type_dict
@@ -217,7 +258,7 @@ def parse_pre_tag_size(binary_file_object, output_file_object):
     Return: None
     '''
     global _TAB_SIZE
-    pre_tag_size = struct.unpack('>i', binary_file_object.read(4))[0]
+    pre_tag_size = struct.unpack('>I', binary_file_object.read(4))[0]
     s = 'PreviousTagSize' + '\t' + str(pre_tag_size) + os.linesep
     output_file_object.write(s.expandtabs(_TAB_SIZE))
     return
@@ -241,7 +282,7 @@ def parse_flv(input_path, output_path):
     while (has_next_tag(binary_file_object)):
         _tag_count += 1
         output_file_object.write(os.linesep * 2 + 'Tag No. ' + str(_tag_count) + os.linesep * 2)
-        tag_type_int = struct.unpack('>b', binary_file_object.read(1))[0]
+        tag_type_int = struct.unpack('>B', binary_file_object.read(1))[0]
         binary_file_object.seek(-1, 1)
         if tag_type_int == 8:
             parse_audio(binary_file_object, output_file_object)
