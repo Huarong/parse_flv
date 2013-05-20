@@ -205,11 +205,14 @@ def parse_audio(binary_file_object, output_file_object):
         field_value = int(binary_audio_info[accumulation: new_accumulation], 2)
         to_write.append(field + '\t' + audio_dict[field][field_value] + os.linesep)
         accumulation = new_accumulation
+    aac_packet_type = struct.unpack('>B', binary_file_object.read(1))[0]
+    acc_packet_type_dict = {0: 'AAC sequence header', 1: ' AAC raw'}
+    to_write.append('ACC Packet Type' + '\t' + acc_packet_type_dict[aac_packet_type] + os.linesep)
     global _TAB_SIZE
     to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
     # Skip data area.
-    binary_file_object.seek(data_size_int - 1, 1)
+    binary_file_object.seek(data_size_int - 1 - 1, 1)
     return
 
 
@@ -243,10 +246,15 @@ def parse_video(binary_file_object, output_file_object):
         field_value = int(binary_video_info[accumulation: new_accumulation], 2)
         to_write.append(field + '\t' + video_dict[field][field_value] + os.linesep)
         accumulation = new_accumulation
+    avc_packet_type = struct.unpack('>B', binary_file_object.read(1))[0]
+    avc_packet_type_dict = {0: 'AVC sequence header', 1: 'AVC NALU', 2: 'AVC end of sequence'}
+    composition_time = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
+    to_write += ['AVC Packet Type' + '\t' + avc_packet_type_dict[avc_packet_type] + os.linesep,
+                'Compositon Time' + '\t' + str(composition_time) + os.linesep]
     global _TAB_SIZE
     to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
-    binary_file_object.seek(data_size_int - 1, 1)
+    binary_file_object.seek(data_size_int - 1 - 4, 1)
     return
 
 

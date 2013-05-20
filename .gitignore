@@ -1,2 +1,5 @@
 *.txt
 *.flv
+*.f4v
+*.pyc
+output*.txt
