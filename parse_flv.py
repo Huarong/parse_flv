@@ -101,35 +101,53 @@ def parse_script_data(binary_file_object, output_file_object):
     to_write = []
     value_type = struct.unpack('>B', binary_file_object.read(1))[0]
     to_write.append('Type' + '\t' + str(value_type) + os.linesep)
+    # AMF1
     # Value type is 2.
     string_size = struct.unpack('>H', binary_file_object.read(2))[0]
     string = binary_file_object.read(string_size)
     to_write += ['String Size' + '\t' + str(string_size) + os.linesep,
                 'String' + '\t' + string + os.linesep]
+    # AMF2
     # Value type is 8.
     value_type = struct.unpack('>B', binary_file_object.read(1))[0]
     array_size = struct.unpack('>I', binary_file_object.read(4))[0]
     to_write += ['Type' + '\t' + str(value_type) + os.linesep,
                 'ECMA Array Size' + '\t' + str(array_size) + os.linesep]
     ECMA_to_write = []
-    while (not is_ECMA_end(binary_file_object)):
-        name_size = struct.unpack('>H', binary_file_object.read(2))[0]
-        name = binary_file_object.read(name_size)
+    while True:
+        title_len = struct.unpack('>H', binary_file_object.read(2))[0]
+        title = binary_file_object.read(title_len)
         ECMA_elem_type = struct.unpack('>B', binary_file_object.read(1))[0]
         if ECMA_elem_type == 0:
             value = struct.unpack('>d', binary_file_object.read(8))[0]
+            to_write += [title + '\t' + str(value) + os.linesep]
         if ECMA_elem_type == 1:
             value = struct.unpack('>B', binary_file_object.read(1))[0]
+            to_write += [title + '\t' + str(value) + os.linesep]
         if ECMA_elem_type == 2:
             string_size = struct.unpack('>H', binary_file_object.read(2))[0]
             value = binary_file_object.read(string_size)
-        if ECMA_elem_type == 12:
-            string_size = struct.unpack('>I', binary_file_object.read(4))[0]
-            value = binary_file_object.read(string_size)
-        output_file_object.write(name + '\t' + str(value) + os.linesep)
-    #     ECMA_to_write.append(name + '\t' + str(value))
-    # output_file_object.writelines(ECMA_to_write)
-    return
+            to_write += [title + '\t' + str(value) + os.linesep]
+        if ECMA_elem_type == 3:
+            to_write += [title + '\t' + os.linesep]
+            while not is_ECMA_end(binary_file_object):
+                sub_tile_len = struct.unpack('>H', binary_file_object.read(2))[0]
+                sub_tile = binary_file_object.read(sub_tile_len)
+                sub_type = struct.unpack('>B', binary_file_object.read(1))[0]
+                to_write.append('\t' + sub_tile + '\t' + os.linesep)
+                if sub_type == 10:
+                    key_frame_num = struct.unpack('>I', binary_file_object.read(4))[0]
+                    to_write.append('\t' + 'key_frame_num' + '\t' + str(key_frame_num) + os.linesep)
+                    for i in range(key_frame_num):
+                        sub2_type = struct.unpack('>B', binary_file_object.read(1))[0]
+                        sub2_value = struct.unpack('>d', binary_file_object.read(8))[0]
+                        to_write.append('\t' * 2 + 'keyframe[%d]' % i + '\t' + str(sub2_value) + os.linesep)
+            binary_file_object.seek(3, 1)
+            break
+    global _TAB_SIZE
+    to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
+    output_file_object.writelines(to_write)
+    return None
 
 
 def parse_script(binary_file_object, output_file_object):
