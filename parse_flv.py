@@ -329,15 +329,15 @@ def main():
     input_path = os.path.abspath(sys.argv[1])
     # Wrong file path.
     if not os.path.isfile(input_path):
-        print 'File not exit: ' + input_path
-        return
+        print 'File not exist: ' + input_path
+        return None
     # Output file is created in the same directory as input file.
     dir_path = os.path.dirname(input_path)
-    output_path = os.path.join(dir_path, 'output.txt')
+    output_path = os.path.join(dir_path, 'out.flv.txt')
     parse_flv(input_path, output_path)
     print 'Succeed!'
     print 'Output file path is ' + output_path
-    return
+    return None
 
 
 if __name__ == '__main__':
