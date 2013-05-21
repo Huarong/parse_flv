@@ -79,14 +79,15 @@ def parse_file_header(binary_file_object, output_file_object):
     return
 
 
-def is_ECMA_end(binary_file_object):
+def is_end_marker(binary_file_object):
     '''
-    Judge whether it is the end of a ECMA array.
+    Judge whether it is the end of a end marker.
     Parameter type: file object.
     Return: boolean
     '''
     value = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
     if value == 9:
+        binary_file_object.seek(-3, 1)
         return True
     binary_file_object.seek(-3, 1)
     return False
@@ -112,25 +113,24 @@ def parse_script_data(binary_file_object, output_file_object):
     value_type = struct.unpack('>B', binary_file_object.read(1))[0]
     array_size = struct.unpack('>I', binary_file_object.read(4))[0]
     to_write += ['Type' + '\t' + str(value_type) + os.linesep,
-                'ECMA Array Size' + '\t' + str(array_size) + os.linesep]
-    ECMA_to_write = []
+                'Array Size' + '\t' + str(array_size) + os.linesep]
     while True:
         title_len = struct.unpack('>H', binary_file_object.read(2))[0]
         title = binary_file_object.read(title_len)
-        ECMA_elem_type = struct.unpack('>B', binary_file_object.read(1))[0]
-        if ECMA_elem_type == 0:
+        elem_type = struct.unpack('>B', binary_file_object.read(1))[0]
+        if elem_type == 0:
             value = struct.unpack('>d', binary_file_object.read(8))[0]
             to_write += [title + '\t' + str(value) + os.linesep]
-        if ECMA_elem_type == 1:
+        if elem_type == 1:
             value = struct.unpack('>B', binary_file_object.read(1))[0]
             to_write += [title + '\t' + str(value) + os.linesep]
-        if ECMA_elem_type == 2:
+        if elem_type == 2:
             string_size = struct.unpack('>H', binary_file_object.read(2))[0]
             value = binary_file_object.read(string_size)
             to_write += [title + '\t' + str(value) + os.linesep]
-        if ECMA_elem_type == 3:
+        if elem_type == 3:
             to_write += [title + '\t' + os.linesep]
-            while not is_ECMA_end(binary_file_object):
+            for i in range(2):
                 sub_tile_len = struct.unpack('>H', binary_file_object.read(2))[0]
                 sub_tile = binary_file_object.read(sub_tile_len)
                 sub_type = struct.unpack('>B', binary_file_object.read(1))[0]
@@ -142,8 +142,13 @@ def parse_script_data(binary_file_object, output_file_object):
                         sub2_type = struct.unpack('>B', binary_file_object.read(1))[0]
                         sub2_value = struct.unpack('>d', binary_file_object.read(8))[0]
                         to_write.append('\t' * 2 + 'keyframe[%d]' % i + '\t' + str(sub2_value) + os.linesep)
-            binary_file_object.seek(3, 1)
+            if is_end_marker(binary_file_object):
+                binary_file_object.seek(3, 1)
             break
+    # according to the flv specification, there should not be a 009 here
+    # but some flv files may not abey the specification and add a 009 endmarker
+    if is_end_marker(binary_file_object):
+        binary_file_object.seek(3, 1)
     global _TAB_SIZE
     to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
     output_file_object.writelines(to_write)
