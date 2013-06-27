@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 This is a tool to parse the infomation of a FLV file.
 How to use:
@@ -8,6 +9,7 @@ import os.path
 import sys
 from collections import OrderedDict
 import struct
+import getopt
 
 _tag_count = 0
 _offset = 0
@@ -155,15 +157,18 @@ def parse_script_data(binary_file_object, output_file_object):
     return None
 
 
-def parse_script(binary_file_object, output_file_object):
+def parse_script(binary_file_object, output_file_object, is_detail):
     '''
     Parse the script tag.
     Parameter type: file object, file object.
     Return: None
     '''
-    parse_tag_header(binary_file_object, output_file_object)
-    parse_script_data(binary_file_object, output_file_object)
-    return
+    data_size_int = parse_tag_header(binary_file_object, output_file_object)
+    if is_detail:
+        parse_script_data(binary_file_object, output_file_object)
+    else:
+        binary_file_object.seek(data_size_int, 1)
+    return None
 
 
 def parse_tag_header(binary_file_object, output_file_object):
@@ -267,12 +272,20 @@ def parse_video(binary_file_object, output_file_object):
     for field in video_data_field:
         new_accumulation = accumulation + video_data_field[field]
         field_value = int(binary_video_info[accumulation: new_accumulation], 2)
-        to_write.append(field + '\t' + video_dict[field][field_value] + os.linesep)
+        try:
+            field_name = video_dict[field][field_value]
+        except KeyError:
+            field_name = 'unknown %s' % str(field_value)
+        to_write.append(field + '\t' + field_name + os.linesep)
         accumulation = new_accumulation
     avc_packet_type = struct.unpack('>B', binary_file_object.read(1))[0]
     avc_packet_type_dict = {0: 'AVC sequence header', 1: 'AVC NALU', 2: 'AVC end of sequence'}
     composition_time = struct.unpack('>I', '\x00' + binary_file_object.read(3))[0]
-    to_write += ['AVC Packet Type' + '\t' + avc_packet_type_dict[avc_packet_type] + os.linesep,
+    try:
+        avc_packet_type_name = avc_packet_type_dict[avc_packet_type]
+    except KeyError:
+        avc_packet_type_name = 'unknown %s' % str(avc_packet_type)
+    to_write += ['AVC Packet Type' + '\t' + avc_packet_type_name + os.linesep,
                 'Compositon Time' + '\t' + str(composition_time) + os.linesep]
     global _TAB_SIZE
     to_write = [s.expandtabs(_TAB_SIZE) for s in to_write]
@@ -294,7 +307,7 @@ def parse_pre_tag_size(binary_file_object, output_file_object):
     return
 
 
-def parse_flv(input_path, output_path):
+def parse_flv(input_path, output_path, is_detail):
     '''
     Parse the whole flv file.
     Parameter type: os path object, os path object.
@@ -319,22 +332,45 @@ def parse_flv(input_path, output_path):
         elif tag_type_int == 9:
             parse_video(binary_file_object, output_file_object)
         else:
-            parse_script(binary_file_object, output_file_object)
+            parse_script(binary_file_object, output_file_object, is_detail)
         parse_pre_tag_size(binary_file_object, output_file_object)
     output_file_object.close()
     return
 
 
+def parse_cmd_args():
+    input_path = None
+    output_name = 'out.flv.txt'
+    is_detail = False
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "hi:o:d")
+    except getopt.GetoptError:
+        print 'Usage:'
+        print 'parse_flv -i input_path -o [output_name]'
+        sys.exit()
+    for op, value in opts:
+        if op == '-i':
+            input_path = value
+        elif op == '-o':
+            output_name = value
+        elif op == '-d':
+            is_detail = True
+        elif op == '-h':
+            print 'Usage:'
+            print 'parse_flv -i input_path [-o output_name]'
+            sys.exit()
+    return os.path.abspath(input_path), output_name, is_detail
+
+
 def main():
-    input_path = os.path.abspath(sys.argv[1])
-    # Wrong file path.
+    input_path, output_name, is_detail = parse_cmd_args()
     if not os.path.isfile(input_path):
         print 'File not exist: ' + input_path
         return None
     # Output file is created in the same directory as input file.
     dir_path = os.path.dirname(input_path)
-    output_path = os.path.join(dir_path, 'out.flv.txt')
-    parse_flv(input_path, output_path)
+    output_path = os.path.join(dir_path, output_name)
+    parse_flv(input_path, output_path, is_detail)
     print 'Succeed!'
     print 'Output file path is ' + output_path
     return None
