@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 '''
 This is a tool to parse the infomation of a FLV file.
-How to use:
-$ python parse_flv.py filename.flv
+Help:
+$ parse_flv -h
+Author: huohuarong(huohuarong@gmail.com)
+Date: 2013/6/28
 '''
 import os
 import os.path
-import sys
 from collections import OrderedDict
 import struct
-import getopt
+import argparse
 
 _tag_count = 0
 _offset = 0
@@ -157,14 +158,14 @@ def parse_script_data(binary_file_object, output_file_object):
     return None
 
 
-def parse_script(binary_file_object, output_file_object, is_detail):
+def parse_script(binary_file_object, output_file_object, script_in_detail):
     '''
     Parse the script tag.
     Parameter type: file object, file object.
     Return: None
     '''
     data_size_int = parse_tag_header(binary_file_object, output_file_object)
-    if is_detail:
+    if script_in_detail:
         parse_script_data(binary_file_object, output_file_object)
     else:
         binary_file_object.seek(data_size_int, 1)
@@ -307,7 +308,7 @@ def parse_pre_tag_size(binary_file_object, output_file_object):
     return
 
 
-def parse_flv(input_path, output_path, is_detail):
+def parse_flv(input_path, output_path, script_in_detail):
     '''
     Parse the whole flv file.
     Parameter type: os path object, os path object.
@@ -332,45 +333,34 @@ def parse_flv(input_path, output_path, is_detail):
         elif tag_type_int == 9:
             parse_video(binary_file_object, output_file_object)
         else:
-            parse_script(binary_file_object, output_file_object, is_detail)
+            parse_script(binary_file_object, output_file_object, script_in_detail)
         parse_pre_tag_size(binary_file_object, output_file_object)
     output_file_object.close()
     return
 
 
 def parse_cmd_args():
-    input_path = None
-    output_name = 'out.flv.txt'
-    is_detail = False
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "hi:o:d")
-    except getopt.GetoptError:
-        print 'Usage:'
-        print 'parse_flv -i input_path -o [output_name]'
-        sys.exit()
-    for op, value in opts:
-        if op == '-i':
-            input_path = value
-        elif op == '-o':
-            output_name = value
-        elif op == '-d':
-            is_detail = True
-        elif op == '-h':
-            print 'Usage:'
-            print 'parse_flv -i input_path [-o output_name]'
-            sys.exit()
-    return os.path.abspath(input_path), output_name, is_detail
+    parser = argparse.ArgumentParser(description='Parse the infomation of a FLV file')
+    parser.add_argument('input', help='Input file path')
+    parser.add_argument('-o', '--output', help='Output file path', default='out.flv.txt')
+    parser.add_argument('-s', '--script', help='Parse script tag in detail', action='store_true')
+    args = parser.parse_args()
+    input_path = os.path.abspath(args.input)
+    output_path = os.path.abspath(args.output)
+    script_in_detail = args.script
+    return input_path, output_path, script_in_detail
 
 
 def main():
-    input_path, output_name, is_detail = parse_cmd_args()
+    input_path, output_path, script_in_detail = parse_cmd_args()
     if not os.path.isfile(input_path):
-        print 'File not exist: ' + input_path
+        print 'ERROR: No such input file: %s' % input_path
         return None
-    # Output file is created in the same directory as input file.
-    dir_path = os.path.dirname(input_path)
-    output_path = os.path.join(dir_path, output_name)
-    parse_flv(input_path, output_path, is_detail)
+    dirname = os.path.dirname(output_path)
+    if not os.path.exists(dirname):
+        print 'ERROR: No such output directory: %s' % dirname
+        return None
+    parse_flv(input_path, output_path, script_in_detail)
     print 'Succeed!'
     print 'Output file path is ' + output_path
     return None
